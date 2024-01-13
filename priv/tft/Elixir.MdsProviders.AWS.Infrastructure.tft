@@ -1,0 +1,110 @@
+// -*- mode: terraform; -*-
+//
+// Template for general infrastructure. For now, we also include the
+// setup.
+//
+
+// Generic stuff that maybe should be moved to some
+// preamble.
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "4.67.0"
+    }
+  }
+
+  required_version = "1.4.6"
+}
+
+provider "aws" {
+  region = "<%= @region %>"
+}
+
+data "aws_availability_zones" "available" {
+  state = "available"
+}
+
+// The actual "infrastructure"
+
+resource "aws_vpc" "<%= @pe_tag %>" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_hostnames = true
+  tags = {
+    Name = "<%= @pe_tag %>"
+    <%= @default_tags %>
+  }
+}
+
+resource "aws_internet_gateway" "<%= @pe_tag %>" {
+  vpc_id = aws_vpc.<%= @pe_tag %>.id
+  tags = {
+    Name = "<%= @pe_tag %>"
+    <%= @default_tags %>
+  }
+}
+
+resource "aws_subnet" "<%= @pe_tag %>_public" {
+  count             = 1
+  vpc_id            = aws_vpc.<%= @pe_tag %>.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = data.aws_availability_zones.available.names[count.index]
+  tags = {
+    Name = "<%= @pe_tag %>_public_${count.index}"
+    <%= @default_tags %>
+  }
+}
+
+resource "aws_subnet" "<%= @pe_tag %>_private" {
+  count             = 2 # RDS needs two
+  vpc_id            = aws_vpc.<%= @pe_tag %>.id
+  cidr_block        = ["10.0.2.0/24", "10.0.3.0/24"][count.index]
+  availability_zone = data.aws_availability_zones.available.names[count.index]
+  tags = {
+    Name = "<%= @pe_tag %>_private_${count.index}"
+    <%= @default_tags %>
+  }
+}
+
+resource "aws_route_table" "<%= @pe_tag %>_public" {
+  vpc_id = aws_vpc.<%= @pe_tag %>.id
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.<%= @pe_tag %>.id
+  }
+  tags = {
+    Name = "<%= @pe_tag %>_public"
+    <%= @default_tags %>
+  }
+}
+
+resource "aws_route_table_association" "public" {
+  count          = 1
+  route_table_id = aws_route_table.<%= @pe_tag %>_public.id
+  subnet_id      = aws_subnet.<%= @pe_tag %>_public[count.index].id
+}
+
+resource "aws_route_table" "<%= @pe_tag %>_private" {
+  vpc_id = aws_vpc.<%= @pe_tag %>.id
+  tags = {
+    Name = "<%= @pe_tag %>_private"
+    <%= @default_tags %>
+  }
+}
+
+resource "aws_route_table_association" "private" {
+  count          = 2
+  route_table_id = aws_route_table.<%= @pe_tag %>_private.id
+  subnet_id      = aws_subnet.<%= @pe_tag %>_private[count.index].id
+}
+
+resource "aws_security_group" "<%= @pe_tag %>_db" {
+  name        = "<%= @pe_tag %>_db"
+  description = "Security group for <%= @project_name %> database"
+  vpc_id      = aws_vpc.<%= @pe_tag %>.id
+
+  tags = {
+    Name = "<%= @pe_tag %>_db"
+    <%= @default_tags %>
+  }
+}

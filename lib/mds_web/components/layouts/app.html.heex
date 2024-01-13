@@ -1,0 +1,35 @@
+<header class="px-4 sm:px-6 lg:px-8 ">
+  <div class="flex items-center justify-between border-b border-zinc-200 py-3 text-sm">
+    <div class="flex items-center gap-4">
+      <a class="font-medium text-orange-600 no-underline hover:underline" href="/">
+        <div class="flex">
+          <div class="flex flex-col">
+            <div class="self-end">Metrist</div>
+            <div class="self-end">Deployer</div>
+          </div>
+          <div class="border-l-2 border-orange-500 ml-2 mr-2"></div>
+          <div>
+            <Heroicons.rocket_launch class="w-10 h-10 stroke-orange-500" />
+          </div>
+        </div>
+      </a>
+    </div>
+    <div class="flex items-center gap-4 font-semibold leading-6 text-orange-950">
+      <%= if !is_nil(@user) do %>
+        Logged in as <a href="/self/profile"><%= @user.email %></a> (account: <%=  @account.name  || @account.id%>)
+        <a href="/auth/signout" class="hover:text-orange-700">
+          Sign Out
+        </a>
+        <a href="/self/change_account" class="hover:text-orange-700">
+          Change active account
+        </a>
+      <% end %>
+    </div>
+  </div>
+</header>
+<main class="px-4 py-20 sm:px-6 lg:px-8">
+  <div class="mx-auto max-w-6xl">
+    <.flash_group flash={@flash} />
+    <%= @inner_content %>
+  </div>
+</main>

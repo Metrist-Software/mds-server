@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# -*- mode: sh; -*-
+
+cmd=$1; shift
+base=$(cd $(dirname $0); pwd)
+
+if [ -x "$base/cmds/mds-$cmd.sh" ]
+then
+    exec "$base/cmds/mds-$cmd.sh" "$@"
+else
+    cat <<EOF
+
+Command "$cmd" does not exist.
+
+EOF
+fi

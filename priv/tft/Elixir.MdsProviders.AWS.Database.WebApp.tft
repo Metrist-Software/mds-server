@@ -1,0 +1,31 @@
+// -*- mode: terraform; -*-
+//
+// Template to generate database setup for a webapp
+//
+
+resource "aws_security_group_rule" "<%= @pe_tag %>_db_allow_web" {
+  description       = "Allow PostgreSQL traffic from the web sg"
+  security_group_id = aws_security_group.<%= @pe_tag %>_db.id
+  type              = "ingress"
+  from_port         = "5432"
+  to_port           = "5432"
+  protocol          = "tcp"
+  source_security_group_id = aws_security_group.<%= @pe_tag %>_web.id
+}
+
+resource "aws_iam_role_policy" "<%= @pe_tag %>_db_secret_access" {
+  name = "<%= @pe_tag_kebab %>-db-secret-access"
+  role = aws_iam_role.<%= @pe_tag %>_web.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Effect   = "Allow",
+        Resource = "${aws_secretsmanager_secret.<%= @pe_tag %>_db.arn}"
+      }
+    ]
+  })
+}

@@ -1,0 +1,55 @@
+on:
+  push:
+    branches:
+      - develop
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    environment: ${{ github.ref == 'refs/heads/main' && 'Production' || 'Staging' }}
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v2
+      with:
+        role-to-assume: ${{ vars.DEPLOYER_ROLE_ARN }}
+        aws-region: ${{ vars.AWS_REGION }}
+
+    - name: Configure docker credentials
+      run: aws ecr get-login-password --region ${{ vars.AWS_REGION }} | docker login --username AWS --password-stdin ${{ vars.ECR_URL }}
+
+    - name: Set tag
+      run: echo "TAG=$(git rev-parse --short HEAD)" >> "$GITHUB_ENV"
+
+    - name: Set docker driver
+      run: docker buildx create --use --driver=docker-container
+
+    - name: Build and push
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        build-args: "TAG=${{ env.TAG }}"
+        push: true
+        tags: "${{ vars.ECR_URL }}/${{ vars.ECR_REPO }}:${{ env.TAG }}"
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Start deploy
+      env:
+        MDS_API_KEY: ${{ secrets.MDS_API_KEY }}
+        MDS_API_URL: ${{ vars.MDS_API_URL }}
+        MDS_PROJECT_ID: ${{ vars.MDS_PROJECT_ID }}
+        MDS_ENVIRONMENT_ID: ${{ vars.MDS_ENVIRONMENT_ID }}
+      run: |
+        tag=$(git rev-parse --short HEAD)
+        curl -X POST $MDS_API_URL/$MDS_PROJECT_ID/$MDS_ENVIRONMENT_ID/deploy \
+         -H "authorization: Bearer $MDS_API_KEY" \
+         -H "Content-Type: application/json" \
+         -d '{ "tag": "${{ env.TAG }}" }'

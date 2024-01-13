@@ -1,0 +1,27 @@
+@import "tailwindcss/base";
+@import "tailwindcss/components";
+@import "tailwindcss/utilities";
+
+/* This file is for your main application CSS */
+a {
+    text-decoration: underline;
+}
+a:hover {
+    font-weight: bold;
+}
+
+h1 {
+    @apply text-xl font-bold mt-6 mb-4;
+}
+
+h2 {
+    @apply text-lg font-bold mt-4 mb-2;
+}
+
+h3 {
+    @apply italic mt-4 mb-2;
+}
+
+pre {
+    @apply mx-1 px-2 p-1 text-sm;
+}

@@ -1,0 +1,49 @@
+<.header>
+  Listing Resources for project <%= @project.name %>
+  <:actions>
+    <.link patch={~p"/resources/#{@project.id}/new"}>
+      <.button>New Resource</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<.table
+  id="resources"
+  rows={@streams.resources}
+  row_click={fn {_id, resource} -> JS.navigate(~p"/resources/#{@project.id}/#{resource}") end}
+>
+  <:col :let={{_id, resource}} label="Type"><%= resource.type %></:col>
+  <:col :let={{_id, resource}} label="Options"><%= externalize_options(resource.options) %></:col>
+  <:action :let={{_id, resource}}>
+    <div class="sr-only">
+      <.link navigate={~p"/resources/#{@project.id}/#{resource}"}>Show</.link>
+    </div>
+    <.link patch={~p"/resources/#{@project.id}/#{resource}/edit"}>Edit</.link>
+  </:action>
+  <:action :let={{id, resource}}>
+    <.link
+      phx-click={JS.push("delete", value: %{id: resource.id}) |> hide("##{id}")}
+      data-confirm="Are you sure?"
+    >
+      Delete
+    </.link>
+  </:action>
+</.table>
+
+<.modal
+  :if={@live_action in [:new, :edit]}
+  id="resource-modal"
+  show
+  on_cancel={JS.patch(~p"/resources/#{@project.id}")}
+>
+  <.live_component
+    module={MdsWeb.ResourceLive.FormComponent}
+    id={@resource.id || :new}
+    title={@page_title}
+    action={@live_action}
+    project={@project}
+    user={@user}
+    resource={@resource}
+    patch={~p"/resources/#{@project.id}"}
+  />
+</.modal>

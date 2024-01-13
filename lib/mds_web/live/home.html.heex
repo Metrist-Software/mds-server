@@ -1,0 +1,44 @@
+<.header>
+  Projects
+  <:actions>
+    <.link patch={~p"/new"}>
+      <.button>New Project</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<ul class="">
+  <%= for p <- @projects do %>
+    <li class="border-solid border-2 border-slate-500 rounded-md p-6 my-4">
+      <div class="flex justify-between">
+        <.link navigate={~p"/projects/#{p.id}"} class="font-bold text-slate-700"><%= p.name %></.link>
+      <div>
+        <.link navigate={~p"/projects/#{p.id}/doc"} title="Project setup documentation"><Heroicons.document class="inline w-6 h-6 stroke-slate-700 hover:fill-slate-300 hover:cursor-pointer" /></.link>
+        <.link navigate={~p"/projects/#{p.id}/delete"} title="Delete project"><Heroicons.trash class="inline w-6 h-6 stroke-slate-700 hover:fill-slate-300 hover:cursor-pointer" /></.link>
+      </div>
+      </div>
+      <ul class="flex justify-end space-x-4">
+        <li :for={e <- p.environments} class="border-solid border-2 border-slate-300 rounded-md pt-2 pb-4 pl-4 pr-10 mt-4">
+          <div class="text-slate-600">
+            <.link navigate={~p"/environments/#{p.id}/#{e.id}"}><%= e.name %></.link>
+          </div>
+          <div class="flex space-x-2 mt-2">
+            <.link navigate={~p"/projects/#{p.id}/#{e.id}/up"} title="Bring up infrastructure"><Heroicons.cloud_arrow_up class="w-6 h-6 stroke-slate-600 hover:fill-slate-200 hover:cursor-pointer" /></.link>
+            <.link navigate={~p"/projects/#{p.id}/#{e.id}/deploy"} title="Deploy software"><Heroicons.truck class="w-6 h-6 stroke-slate-600 hover:fill-slate-200 hover:cursor-pointer" /></.link>
+            <.link navigate={~p"/projects/#{p.id}/#{e.id}/history"} title="Deployment history"><Heroicons.archive_box class="w-6 h-6 stroke-slate-600 hover:fill-slate-200 hover:cursor-pointer" /></.link>
+            <!--  <.link navigate={~p"/environments/#{p.id}/#{e.id}/delete"} title="Delete"><Heroicons.trash class="w-6 h-6 stroke-slate-600 hover:fill-slate-200 hover:cursor-pointer" /></.link> -->
+          </div>
+        </li>
+      </ul>
+    </li>
+  <% end %>
+</ul>
+
+<.modal
+  :if={@live_action == :new}
+  id="project-modal"
+  show
+  on_cancel={JS.patch(~p"/")}
+>
+  <.live_component module={MdsWeb.Components.ProjectWizard.Main} id="wizard" user_id={@user_id} account_id={@account_id} />
+</.modal>

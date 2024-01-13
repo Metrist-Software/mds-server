@@ -1,0 +1,23 @@
+<div>
+  <h1>Deployment history for <%= @project.name %>/<%= @environment.name %></h1>
+  <table>
+    <tr class="border-zinc-400 border-b">
+      <th>Date</th>
+      <th>State</th>
+      <th>Kind</th>
+      <th>Log</th>
+    </tr>
+  <%= for d <- @deployments do %>
+    <tr>
+      <td class="py-1 px-2"><%= d.updated_at %></td>
+      <td class="py-1 px-2"><%= d.state %></td>
+      <td class="py-1 px-2"><%= d.kind %></td>
+      <td class="py-1 px-2">
+        <%= if has_log?(d) do %>
+          <.link navigate={~p"/deployments/#{d.id}/log"} title="Show log"><Heroicons.bars_3_bottom_left /></.link>
+        <% end %>
+      </td>
+    </tr>
+  <% end %>
+  </table>
+</div>

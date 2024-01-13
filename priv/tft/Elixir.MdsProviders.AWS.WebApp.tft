@@ -1,0 +1,206 @@
+// -*- mode: terraform; -*-
+//
+//  Template for WebApp on AWS
+//
+
+data "aws_ami" "ubuntu" {
+  most_recent = "true"
+
+  filter {
+    name   = "name"
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+
+  // The publisher of Ubuntu 20.04 LTS Focal is Canonical
+  // and their ID is 099720109477
+  owners = ["099720109477"]
+}
+
+resource "aws_ecr_repository" "<%= @pe_tag %>" {
+  name = "<%= @pe_tag_kebab %>"
+  tags = {
+    <%= @default_tags %>
+  }
+}
+
+output "mds_webapp_container_repository" {
+  value = aws_ecr_repository.<%= @pe_tag %>.repository_url
+}
+
+resource "aws_iam_role" "<%= @pe_tag %>_web" {
+  name = "<%= @pe_tag_kebab %>"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = "sts:AssumeRole"
+        Effect = "Allow"
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+      },
+    ]
+  })
+  tags = {
+    <%= @default_tags %>
+  }
+}
+
+resource "aws_iam_role_policy" "<%= @pe_tag %>_ecr_access" {
+  name = "<%= @pe_tag_kebab %>-ecr-access"
+  role = aws_iam_role.<%= @pe_tag %>_web.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:DescribeRegistry",
+          "ecr:DescribePullThroughCacheRules",
+          "ecr:DescribeImageReplicationStatus",
+          "ecr:ListTagsForResource",
+          "ecr:BatchGetImage",
+          "ecr:DescribeRepositories",
+          "ecr:BatchCheckLayerAvailability"
+        ]
+        Effect   = "Allow"
+        Resource = "${aws_ecr_repository.<%= @pe_tag %>.arn}"
+      },
+      {
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ]
+        Effect = "Allow"
+        Resource = "*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "<%= @pe_tag %>_ssm_managed" {
+  role = aws_iam_role.<%= @pe_tag %>_web.id
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+resource "aws_iam_instance_profile" "<%= @pe_tag %>_web" {
+  name = "<%= @pe_tag_kebab %>"
+  role = aws_iam_role.<%= @pe_tag %>_web.id
+}
+
+resource "aws_key_pair" "<%= @pe_tag %>" {
+  key_name_prefix = "<%= @pe_tag_kebab %>-"
+  public_key = file("<%= @pub_key_file %>")
+  tags = {
+    <%= @default_tags %>
+  }
+}
+
+resource "aws_instance" "<%= @pe_tag %>_web" {
+  count                  = 1
+  ami                    = data.aws_ami.ubuntu.id
+  instance_type          = "t3.micro"
+  iam_instance_profile   = aws_iam_instance_profile.<%= @pe_tag %>_web.name
+  subnet_id              = aws_subnet.<%= @pe_tag %>_public[count.index].id
+  key_name               = aws_key_pair.<%= @pe_tag %>.key_name
+  vpc_security_group_ids = [aws_security_group.<%= @pe_tag %>_web.id]
+  tags = {
+    Name = "<%= @pe_tag %>_web_${count.index}"
+    <%= @default_tags %>
+  }
+  user_data_replace_on_change = true
+  user_data                   = <<EOT
+#!/usr/bin/bash -vx
+apt-get update && apt-get upgrade -y
+apt-get install -y docker.io curl git awscli jq
+
+adduser ubuntu docker
+
+# Only needed if/when debugging
+mkdir ~ubuntu/.aws
+cat >~ubuntu/.aws/config <<EOF
+[default]
+credential_source = Ec2InstanceMetadata
+region = <%= @region %>
+EOF
+chown ubuntu ~ubuntu/.aws/config
+
+docker run -d --restart unless-stopped --name traefik \
+  -p 443:443 \
+  -p 80:80 \
+  -p 8080:8080 \
+  --volume /var/run/docker.sock:/var/run/docker.sock \
+  traefik:latest \
+    --providers.docker \
+    --api.insecure=true \
+    --entrypoints.web.address=:80 \
+    --entrypoints.webSecure.address=:443 \
+    --certificatesresolvers.myresolver.acme.email=eng@metrist.io \
+    --certificatesresolvers.myresolver.acme.storage=acme.json \
+    --certificatesresolvers.myresolver.acme.httpchallenge.entrypoint=web
+EOT
+}
+
+resource "aws_eip" "<%= @pe_tag %>_web" {
+  count    = 1
+  instance = aws_instance.<%= @pe_tag %>_web[count.index].id
+  vpc      = true
+  tags = {
+    Name = "<%= @pe_tag %>_web_${count.index}"
+    <%= @default_tags %>
+  }
+}
+output "mds_webapp_instance_ip" {
+  value = aws_eip.<%= @pe_tag %>_web[0].public_ip
+}
+
+
+resource "random_password" "<%= @pe_tag %>_phx_key" {
+  length  = 64
+  special = false
+}
+resource "aws_secretsmanager_secret" "<%= @pe_tag %>_phx" {
+  name_prefix = "mds/<%= @env_kebab %>/<%= @project_kebab %>/phx/"
+  tags = {
+    <%= @default_tags %>
+  }
+}
+resource "aws_secretsmanager_secret_version" "<%= @pe_tag %>_phx" {
+  secret_id = aws_secretsmanager_secret.<%= @pe_tag %>_phx.id
+  secret_string = jsonencode({
+    key = random_password.<%= @pe_tag %>_phx_key.result,
+  })
+}
+// We give access to all prefixes so we can have user-defined secrets in here as well
+resource "aws_iam_role_policy" "<%= @pe_tag %>_secret_access" {
+  name = "<%= @pe_tag_kebab %>-secret-access"
+  role = aws_iam_role.<%= @pe_tag %>_web.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "secretsmanager:GetSecretValue"
+        ]
+        Effect   = "Allow",
+        Resource = "arn:aws:secretsmanager:<%= @region %>:*:secret:mds/<%= @env_kebab %>/<%= @project_kebab %>/*"
+      }
+    ]
+  })
+}
+output "mds_webapp_phx_secret" {
+  value = aws_secretsmanager_secret.<%= @pe_tag %>_phx.name
+}
+
+<%= if @has_role_policy do %>
+resource "aws_iam_role_policy" "<%= @pe_tag %>_extra" {
+  name = "<%= @pe_tag_kebab %>-extra"
+  role = aws_iam_role.<%= @pe_tag %>_web.id
+  policy = jsonencode(<%= @role_policy %>)
+}
+
+<%  end %>

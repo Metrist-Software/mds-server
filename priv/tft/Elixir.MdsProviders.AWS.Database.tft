@@ -1,0 +1,93 @@
+// -*- mode: terraform; -*-
+//
+// Infrastructure template for AWS Database
+//
+
+
+resource "aws_db_subnet_group" "<%= @pe_tag %>_db" {
+  name        = "<%= @pe_tag %>_db"
+  description = "DB subnet group for <%= @project_name %>"
+
+  subnet_ids = [for subnet in aws_subnet.<%= @pe_tag %>_private : subnet.id]
+  tags = {
+    <%= @default_tags %>
+  }
+}
+
+resource "random_password" "<%= @pe_tag %>_db_pass" {
+  length  = 64
+  special = false
+}
+
+resource "aws_rds_cluster" "<%= @pe_tag %>" {
+  cluster_identifier = "<%= @pe_tag_kebab %>"
+  engine             = "aurora-postgresql"
+  engine_mode        = "provisioned"
+  engine_version     = "14.6"
+  database_name      = "<%= @pe_tag_smashed %>"
+  master_username    = "postgres"
+  master_password    = random_password.<%= @pe_tag %>_db_pass.result
+
+  serverlessv2_scaling_configuration {
+    max_capacity = 1.0
+    min_capacity = 0.5
+  }
+  db_subnet_group_name   = aws_db_subnet_group.<%= @pe_tag %>_db.id
+  vpc_security_group_ids = [aws_security_group.<%= @pe_tag %>_db.id]
+  skip_final_snapshot    = true
+  tags = {
+    <%= @default_tags %>
+  }
+}
+
+resource "aws_rds_cluster_instance" "<%= @pe_tag %>" {
+  identifier         = "<%= @pe_tag_kebab %>-main"
+  cluster_identifier = aws_rds_cluster.<%= @pe_tag %>.id
+  instance_class     = "db.serverless"
+  engine             = aws_rds_cluster.<%= @pe_tag %>.engine
+  engine_version     = aws_rds_cluster.<%= @pe_tag %>.engine_version
+
+  db_subnet_group_name   = aws_db_subnet_group.<%= @pe_tag %>_db.id
+  tags = {
+    <%= @default_tags %>
+  }
+}
+
+output "mds_database_name" {
+  value = aws_rds_cluster.<%= @pe_tag %>.database_name
+}
+output "mds_database_host" {
+  value = aws_rds_cluster.<%= @pe_tag %>.endpoint
+}
+output "mds_database_port" {
+  value = aws_rds_cluster.<%= @pe_tag %>.port
+}
+output "mds_database_user" {
+  value = aws_rds_cluster.<%= @pe_tag %>.master_username
+}
+# TODO let this flow exclusively through secrets. This is easier for the demo but should not reach production
+output "mds_database_pass" {
+  value = aws_rds_cluster.<%= @pe_tag %>.master_password
+  sensitive = true
+}
+
+resource "aws_secretsmanager_secret" "<%= @pe_tag %>_db" {
+  name_prefix = "mds/<%= @env_kebab %>/<%= @project_kebab %>/db/"
+  tags = {
+    <%= @default_tags %>
+  }
+}
+
+resource "aws_secretsmanager_secret_version" "<%= @pe_tag %>_db" {
+  secret_id = aws_secretsmanager_secret.<%= @pe_tag %>_db.id
+  secret_string = jsonencode({
+    user = aws_rds_cluster.<%= @pe_tag %>.master_username,
+    pass = random_password.<%= @pe_tag %>_db_pass.result,
+    host = aws_rds_cluster.<%= @pe_tag %>.endpoint,
+    name = aws_rds_cluster.<%= @pe_tag %>.database_name
+  })
+}
+
+output "mds_database_secret" {
+  value = aws_secretsmanager_secret.<%= @pe_tag %>_db.name
+}

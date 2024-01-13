@@ -1,0 +1,36 @@
+<.header>
+  Project <%= @project.id %>
+  <:subtitle>This is a project record from your database.</:subtitle>
+  <:actions>
+    <.link patch={~p"/projects/#{@project}/show/edit"} phx-click={JS.push_focus()}>
+      <.button>Edit project</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<.list>
+  <:item title="Name"><%= @project.name %></:item>
+</.list>
+
+<.link navigate={~p"/environments/#{@project}/"}>Environments</.link>
+<br />
+<.link navigate={~p"/resources/#{@project}/"}>Resources</.link>
+
+<.back navigate={~p"/projects"}>Back to projects</.back>
+
+<.modal
+  :if={@live_action == :edit}
+  id="project-modal"
+  show
+  on_cancel={JS.patch(~p"/projects/#{@project}")}
+>
+  <.live_component
+    module={MdsWeb.ProjectLive.FormComponent}
+    id={@project.id}
+    title={@page_title}
+    action={@live_action}
+    project={@project}
+    user={@user}
+    patch={~p"/projects/#{@project}"}
+  />
+</.modal>

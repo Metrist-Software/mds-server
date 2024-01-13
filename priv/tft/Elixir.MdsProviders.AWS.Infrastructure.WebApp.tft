@@ -1,0 +1,48 @@
+// -*- mode: terraform; -*-
+//
+// Infrastructure for WebApp
+//
+
+resource "aws_security_group" "<%= @pe_tag %>_web" {
+  name        = "<%= @pe_tag %>_web"
+  description = "Security group for <%= @project_name %> web servers"
+  vpc_id      = aws_vpc.<%= @pe_tag %>.id
+
+  # Currently needed for Let's Encrypt
+  ingress {
+    description = "Allow all traffic through HTTP"
+    from_port   = "80"
+    to_port     = "80"
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow all traffic through TLS"
+    from_port   = "443"
+    to_port     = "443"
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    description = "Allow all traffic through SSH"
+    from_port   = "22"
+    to_port     = "22"
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    description = "Allow all outbound traffic"
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "<%= @pe_tag %>_web"
+    <%= @default_tags %>
+  }
+}

@@ -1,0 +1,55 @@
+<h1>Documentation for <%= @project.name %></h1>
+<h2>1. How to build</h2>
+<p>
+  Metrist Deployer uses Docker containers for distribution. Each environment has its own
+  registry, which allows staged deploys if that is wanted (and keeps environments a bit
+  more regular). Therefore, building conists of the two standard Docker steps: building
+  the container with a tag, and then pushing the container with a tag.
+</p>
+<%= for e <- @environments do %>
+  <h3>How to build <%= e.name %></h3>
+  <%= if is_nil(@states_by_env[e.id]) do %>
+    <p>
+      Before you can build and push a container, you need to <.link navigate={
+        ~p"/projects/#{@project.id}/#{e.id}/up"
+      }>create the infrastructure first</.link>.
+    </p>
+  <% else %>
+    <p>
+      You can build and push a container for <%= e.name %> with the following commands:
+    </p>
+    <pre>
+docker build -t <%= container_repository(@states_by_env, e) %>:$(git rev-parse --short HEAD) .
+docker push <%= container_repository(@states_by_env, e) %>:$(git rev-parse --short HEAD)</pre>
+    <p>
+      You can add these commands to your existing CI pipeline script. Note that you do need
+      to setup secrets for the repository as well.
+    </p>
+  <% end %>
+<% end %>
+<h2>2. How to deploy</h2>
+<p>
+  While there is a deployment UI in the webapp, the preferred way is to use an API
+  call from a continuous deployment pipeline. The API call is very simple and usually
+  can be implemented using `curl`, which should be available in most places.
+  <%= for e <- @environments do %>
+    <h3>How to deploy <%= e.name %></h3>
+    <%= if is_nil(@states_by_env[e.id]) do %>
+      <p>
+        Before you can build and push a container, you need to <.link navigate={
+          ~p"/projects/#{@project.id}/#{e.id}/up"
+        }>create the infrastructure first</.link>.
+      </p>
+    <% else %>
+      <p>
+        You can initiate a deployment for <%= e.name %> with the following command:
+      </p>
+      <pre phx-click="toggle-api-token" class="hover:cursor-pointer">
+curl -X POST https://deploy.metri.st/api/<%= @project.id %>/<%= e.id %>/deploy \
+  -H 'authorization: Bearer <%= @shown_api_token %>' \
+  -H "Content-Type: application/json" \
+  -d '{ "tag": "'"$(git rev-parse --short HEAD)"'" }'</pre>
+      <p class="text-sm">Click on the code box above to <%= @reveal_hide %> the API token</p>
+    <% end %>
+  <% end %>
+</p>

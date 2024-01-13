@@ -1,0 +1,47 @@
+<.header>
+  Listing Environments for project <%= @project.name %>
+  <:actions>
+    <.link patch={~p"/environments/#{@project.id}/new"}>
+      <.button>New Environment</.button>
+    </.link>
+  </:actions>
+</.header>
+
+<.table
+  id="environments"
+  rows={@streams.environments}
+  row_click={
+    fn {_id, environment} -> JS.navigate(~p"/environments/#{@project.id}/#{environment}") end
+  }
+>
+  <:col :let={{_id, environment}} label="Name"><%= environment.name %></:col>
+  <:col :let={{_id, environment}} label="Options"><%= environment.options %></:col>
+  <:action :let={{_id, environment}}>
+    <div class="sr-only">
+      <.link navigate={~p"/environments/#{@project.id}/#{environment}"}>Show</.link>
+    </div>
+    <.link patch={~p"/environments/#{@project.id}/#{environment}/edit"}>Edit</.link>
+  </:action>
+  <:action :let={{_id, environment}}>
+    <.link navigate={~p"/environments/#{@project.id}/#{environment}/delete"}>Delete</.link>
+  </:action>
+</.table>
+
+<.modal
+  :if={@live_action in [:new, :edit]}
+  id="environment-modal"
+  show
+  on_cancel={JS.patch(~p"/environments/#{@project.id}")}
+>
+  <.live_component
+    module={MdsWeb.EnvironmentLive.FormComponent}
+    id={@environment.id || :new}
+    title={@page_title}
+    action={@live_action}
+    project={@project}
+    user={@user}
+    environment={@environment}
+    patch={~p"/environments/#{@project.id}"}
+  />
+</.modal>
+
